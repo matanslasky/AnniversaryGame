@@ -484,7 +484,7 @@
                 <h2>Video Upload & Display</h2>
                 <div class="upload-area" id="uploadArea">
                     <p>📁 Drop video files here or click to upload multiple videos</p>
-                    <input type="file" id="fileInput" class="file-input" accept="video/*, .avi" multiple>
+                    <input type="file" id="fileInput" class="file-input" accept="video/mp4,video/webm,video/ogg" multiple>
                     <button class="upload-btn" onclick="document.getElementById('fileInput').click()">Choose Videos</button>
                 </div>
 
@@ -562,14 +562,20 @@
         // Game state managed locally and synchronized via localStorage events
         let gameState = {
             voting: false,
-            countdown: 7, // Initial countdown time
+            countdown: 7,
             votes: { cry: 0, rollEyes: 0 },
-            voters: new Set(), // To keep track of voters for the current round
-            chart: null, // Chart.js instance
-            videos: [], // Array to store video objects (name, size, URL)
+            voters: new Set(),
+            chart: null,
+            videos: [],
             currentVideoIndex: 0,
-            sessionId: generateSessionId() // Unique ID for this browser session
+            sessionId: generateSessionId()
         };
+
+        // Persistent voter ID per device/tab
+        if (!localStorage.getItem('voterId')) {
+            localStorage.setItem('voterId', 'voter_' + Math.random().toString(36).substr(2, 9));
+        }
+        const voterId = localStorage.getItem('voterId');
 
         let countdownTimer; // Timer for the voting countdown
 
@@ -1021,12 +1027,6 @@
          * @param {string} vote - 'cry' or 'roll-eyes'.
          */
         function castVote(vote) {
-            // Persistent voter ID per device/tab
-            if (!localStorage.getItem('voterId')) {
-                localStorage.setItem('voterId', 'voter_' + Math.random().toString(36).substr(2, 9));
-            }
-            const voterId = localStorage.getItem('voterId');
-
             if (!gameState.voting || gameState.voters.has(voterId)) {
                 // If voting is not active or this voter has already voted in this round, do nothing.
                 return;
