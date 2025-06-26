@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anniversary Video Voting Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
+
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* Custom styles to complement Tailwind and provide background/base */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        #root { /* React app will mount here */
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        /* Overrides for specific elements to ensure consistent styling */
+        .container {
+            @apply max-w-5xl w-full mx-auto p-5 md:p-8 bg-white bg-opacity-5 rounded-3xl shadow-xl backdrop-blur-md border border-white border-opacity-10;
+        }
+        h1, h2, h3 {
+            @apply text-center mb-5 font-bold drop-shadow-lg;
+        }
+        h1 {
+            @apply text-4xl md:text-5xl mb-8;
+        }
+        h2 {
+            @apply text-3xl md:text-4xl;
+        }
+        h3 {
+            @apply text-2xl md:text-3xl;
+        }
+        .mode-btn, .upload-btn, .control-btn, .vote-btn {
+            @apply transition-all duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg;
+        }
+        .mode-btn {
+            @apply bg-white bg-opacity-20 border border-white border-opacity-30 text-white px-6 py-3 rounded-full text-lg md:text-xl font-semibold;
+        }
+        .mode-btn.active {
+            @apply bg-opacity-30 border-opacity-60 shadow-lg;
+        }
+        .video-section, .results-section, .live-votes, .voting-area, .video-playlist {
+            @apply bg-white bg-opacity-10 rounded-2xl p-6 md:p-8 mb-8 backdrop-blur-sm border border-white border-opacity-20 shadow-lg;
+        }
+        .upload-area {
+            @apply border-4 border-dashed border-white border-opacity-50 rounded-2xl p-8 md:p-12 text-center cursor-pointer;
+        }
+        .upload-area.dragover {
+            @apply border-green-400 bg-green-500 bg-opacity-10;
+        }
+        .upload-btn {
+            @apply bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-3 rounded-full font-semibold mt-4;
+        }
+        video {
+            @apply w-full max-h-[60vh] rounded-2xl shadow-xl bg-black;
+        }
+        .control-panel {
+            @apply flex flex-wrap justify-center gap-4 mt-6;
+        }
+        .control-btn {
+            @apply bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-full font-semibold;
+        }
+        .control-btn.start {
+            @apply from-green-500 to-green-600;
+        }
+        .control-btn.reset {
+            @apply from-orange-500 to-orange-600;
+        }
+        .control-btn:disabled {
+            @apply opacity-50 cursor-not-allowed transform-none shadow-none;
+        }
+        .playlist-items {
+            @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4;
+        }
+        .playlist-item {
+            @apply bg-white bg-opacity-10 rounded-xl p-4 text-center cursor-pointer border-2 border-transparent;
+        }
+        .playlist-item:hover {
+            @apply bg-opacity-20 -translate-y-0.5;
+        }
+        .playlist-item.active {
+            @apply border-green-400 bg-green-500 bg-opacity-20 shadow-md;
+        }
+        .countdown-display {
+            @apply text-7xl md:text-8xl font-extrabold text-center my-8 drop-shadow-xl animate-pulse;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.9; }
+        }
+        .vote-countdown {
+            @apply text-5xl md:text-6xl font-bold mb-8 drop-shadow-lg;
+        }
+        .vote-buttons {
+            @apply flex flex-wrap justify-center gap-6;
+        }
+        .vote-btn {
+            @apply bg-white bg-opacity-20 border-4 text-white p-8 rounded-3xl text-3xl font-bold;
+        }
+        .vote-btn.cry {
+            @apply border-green-400;
+        }
+        .vote-btn.cry:hover, .vote-btn.cry.selected {
+            @apply bg-green-500 bg-opacity-30 border-green-500;
+        }
+        .vote-btn.roll-eyes {
+            @apply border-red-400;
+        }
+        .vote-btn.roll-eyes:hover, .vote-btn.roll-eyes.selected {
+            @apply bg-red-500 bg-opacity-30 border-red-500;
+        }
+        .waiting-message {
+            @apply text-xl md:text-2xl mt-8 opacity-80;
+        }
+        .stats {
+            @apply flex flex-wrap justify-around gap-4 mt-8 text-xl;
+        }
+        .stat-item {
+            @apply bg-white bg-opacity-10 p-5 rounded-xl text-center flex-grow min-w-[180px] shadow-md backdrop-blur-sm;
+        }
+        .emoji {
+            @apply text-5xl block mb-2;
+        }
+        .live-votes {
+            @apply mt-8 p-6;
+        }
+        .live-vote-counts {
+            @apply flex justify-around flex-wrap mt-4 text-2xl;
+        }
+        .live-count {
+            @apply bg-white bg-opacity-10 p-4 rounded-xl text-center flex-grow m-2 min-w-[120px] shadow-sm;
+        }
+        .connection-status {
+            @apply fixed top-5 right-5 bg-white bg-opacity-20 rounded-full px-4 py-2 text-sm font-semibold backdrop-blur-sm z-50;
+            border-color: transparent; /* Reset default border from custom style */
+        }
+        .connection-status.connected {
+            @apply border-green-400;
+        }
+        .connection-status.disconnected {
+            @apply border-red-400;
+        }
+        .video-error-message {
+            @apply text-red-400 mt-4 text-lg font-bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // React and ReactDOM are now loaded globally via separate <script> tags above.
+        const { useState, useEffect, useRef, useCallback } = React; // Destructure hooks from global React
+        const ReactDOM = window.ReactDOM; // Access ReactDOM from global scope
+        
+        // Firebase modules are now loaded globally, so access them through the `firebase` global object.
+        const firebase = window.firebase;
+        // Destructure Firebase functions inside getFirebase or directly use firebase.auth.getAuth etc.
+        // Removed global destructuring here to fix TypeError.
+
+        // Firebase configuration and initialization (will be provided by Canvas environment)
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-anniversary-app';
+
+        let app;
+        let db;
+        let auth;
+
+        // Helper to get Firebase instances once
+        const getFirebase = () => {
+          if (!app) {
+            app = firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore.getFirestore(app);
+            auth = firebase.auth.getAuth(app);
+          }
+          return { db, auth };
+        };
+
+        // Define Firestore collection paths
+        const GAME_STATE_DOC_PATH = `artifacts/${appId}/public/data/gameState`;
+        const ACTIVE_USERS_COLLECTION_PATH = `artifacts/${appId}/public/data/activeUsers`;
+
+        let countdownTimer; // Define countdownTimer in a scope accessible by the interval
+
+        function App() {
+          const [mode, setMode] = useState('main'); // 'main' or 'phone'
+          const [gameState, setGameState] = useState({
+            voting: false,
+            countdown: 7,
+            votes: { cry: 0, rollEyes: 0 },
+            currentVideoUrl: '',
+            currentVideoTitle: 'No video selected',
+            videoId: null, // Unique ID for the current video playing
+            hostId: null, // ID of the host currently running the game
+          });
+          const [userId, setUserId] = useState(null);
+          const [isAuthReady, setIsAuthReady] = useState(false);
+          const [connectedUsersCount, setConnectedUsersCount] = useState(0);
+          const [userVoteStatus, setUserVoteStatus] = useState(null); // 'cry', 'roll-eyes', or null
+          const videoPlayerRef = useRef(null); // Ref for the video player element
+          const [videoUrlInput, setVideoUrlInput] = useState(''); // State for video URL input
+          const [videosInPlaylist, setVideosInPlaylist] = useState([]); // Array of {url, title}
+          const [currentPlaylistIndex, setCurrentPlaylistIndex] = useState(0);
+          const chartCanvasRef = useRef(null); // Ref for the Chart.js canvas element
+          const chartInstanceRef = useRef(null); // Ref for the Chart.js instance
+
+
+          // --- Firebase Initialization and Authentication ---
+          useEffect(() => {
+            const { db, auth } = getFirebase(); // Get initialized Firebase instances
+
+            const signIn = async () => {
+              try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                  await firebase.auth.signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                  await firebase.auth.signInAnonymously(auth);
+                }
+              } catch (error) {
+                console.error("Firebase Auth error:", error);
+              }
+            };
+
+            const unsubscribeAuth = firebase.auth.onAuthStateChanged(auth, async (user) => {
+              if (user) {
+                const currentUserId = user.uid;
+                setUserId(currentUserId);
+                setIsAuthReady(true);
+
+                // Add/update user's presence in Firestore
+                const userDocRef = firebase.firestore.doc(db, ACTIVE_USERS_COLLECTION_PATH, currentUserId);
+                await firebase.firestore.setDoc(userDocRef, {
+                  lastSeen: firebase.firestore.Timestamp.now(),
+                  mode: mode, // Store current mode ('main' or 'phone')
+                  appId: appId,
+                }, { merge: true });
+
+                // Cleanup function for user presence on unmount/disconnect
+                // This is a best-effort attempt for browser tab closures, not guaranteed.
+                window.addEventListener('beforeunload', async () => {
+                  if (user && db) { // Ensure user and db are not null
+                    await firebase.firestore.deleteDoc(firebase.firestore.doc(db, ACTIVE_USERS_COLLECTION_PATH, user.uid));
+                  }
+                });
+
+              } else {
+                setUserId(null);
+                setIsAuthReady(false);
+                signIn(); // Attempt to sign in if not authenticated
+              }
+            });
+
+            return () => {
+              unsubscribeAuth();
+            };
+          }, []); // Run once on component mount
+
+          // --- Real-time Game State Synchronization (Firestore Listeners) ---
+          useEffect(() => {
+            if (!isAuthReady || !db) return;
+            const { db: initializedDb } = getFirebase(); // Get initialized Firebase instance for listeners
+
+            // Listener for the main game state document
+            const unsubscribeGameState = firebase.firestore.onSnapshot(firebase.firestore.doc(initializedDb, GAME_STATE_DOC_PATH, 'current'), (docSnap) => {
+              if (docSnap.exists()) {
+                const newGameState = docSnap.data();
+                setGameState(prev => {
+                  // If voting state changes from false to true, reset local voter status
+                  if (!prev.voting && newGameState.voting) {
+                    setUserVoteStatus(null);
+                  }
+                  return newGameState;
+                });
+              } else {
+                // If document doesn't exist, initialize it (only host should do this)
+                if (mode === 'main') {
+                    firebase.firestore.setDoc(firebase.firestore.doc(initializedDb, GAME_STATE_DOC_PATH, 'current'), {
+                        voting: false,
+                        countdown: 7,
+                        votes: { cry: 0, rollEyes: 0 },
+                        currentVideoUrl: '',
+                        currentVideoTitle: 'No video selected',
+                        videoId: null,
+                    }, { merge: true }).catch(error => {
+                        console.warn("Failed to initialize game state (may already exist):", error);
+                    });
+                }
+              }
+            });
+
+            // Listener for active users count
+            const unsubscribeActiveUsers = firebase.firestore.onSnapshot(firebase.firestore.collection(initializedDb, ACTIVE_USERS_COLLECTION_PATH), (snapshot) => {
+              let count = 0;
+              snapshot.forEach(doc => {
+                // Only count users for this specific app instance (via appId)
+                if (doc.data().appId === appId) {
+                  count++;
+                }
+              });
+              setConnectedUsersCount(count);
+            });
+
+            return () => {
+              unsubscribeGameState();
+              unsubscribeActiveUsers();
+            };
+          }, [isAuthReady, mode]); // db is now accessed via getFirebase() inside the effect
+
+          // Update user presence with latest timestamp periodically
+          useEffect(() => {
+            let interval;
+            if (isAuthReady && userId) {
+              const { db: initializedDb } = getFirebase(); // Get initialized Firebase instance
+              interval = setInterval(async () => {
+                try {
+                  const userDocRef = firebase.firestore.doc(initializedDb, ACTIVE_USERS_COLLECTION_PATH, userId);
+                  await firebase.firestore.setDoc(userDocRef, { lastSeen: firebase.firestore.Timestamp.now(), mode: mode, appId: appId }, { merge: true });
+                } catch (error) {
+                  console.error("Error updating user presence:", error);
+                }
+              }, 30000); // Update every 30 seconds
+            }
+            return () => clearInterval(interval);
+          }, [isAuthReady, userId, mode]); // db is now accessed via getFirebase() inside the effect
+
+          // --- Chart.js Management (Manual Drawing) ---
+          useEffect(() => {
+            const ctx = chartCanvasRef.current?.getContext('2d');
+            if (!ctx) {
+                if (chartInstanceRef.current) {
+                    chartInstanceRef.current.destroy();
+                    chartInstanceRef.current = null;
+                }
+                return;
+            }
+
+            const total = gameState.votes.cry + gameState.votes.rollEyes;
+            const data = {
+                labels: ['😢 Cry', '🙄 Roll Eyes'],
+                datasets: [{
+                    data: [gameState.votes.cry, gameState.votes.rollEyes],
+                    backgroundColor: ['rgba(76, 175, 80, 0.8)', 'rgba(255, 107, 107, 0.8)'],
+                    borderColor: ['rgba(76, 175, 80, 1)', 'rgba(255, 107, 107, 1)'],
+                    borderWidth: 2,
+                }],
+            };
+
+            const options = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'white',
+                            font: { size: 16 }
+                        },
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                if (total === 0) return `${label}: 0 votes (0%)`;
+                                const percentage = (total > 0 ? (context.parsed / total) * 100 : 0).toFixed(0);
+                                return `${label}: ${context.parsed} votes (${percentage}%)`;
+                            },
+                        },
+                    },
+                },
+            };
+
+            if (chartInstanceRef.current) {
+                // Update existing chart data
+                chartInstanceRef.current.data = data;
+                chartInstanceRef.current.update();
+            } else {
+                // Create new chart instance
+                chartInstanceRef.current = new window.Chart(ctx, {
+                    type: 'pie',
+                    data: data,
+                    options: options,
+                });
+            }
+
+            // Cleanup on unmount
+            return () => {
+                if (chartInstanceRef.current) {
+                    chartInstanceRef.current.destroy();
+                    chartInstanceRef.current = null;
+                }
+            };
+          }, [gameState.votes]); // Redraw chart when votes change
+
+          // --- Update Game State in Firestore ---
+          const updateGameStateInFirestore = useCallback(async (updates) => {
+            const { db: initializedDb } = getFirebase(); // Get initialized Firebase instance
+            if (!initializedDb) return;
+            try {
+                await firebase.firestore.setDoc(firebase.firestore.doc(initializedDb, GAME_STATE_DOC_PATH, 'current'), updates, { merge: true });
+            } catch (error) {
+              console.error("Error updating game state:", error);
+            }
+          }, []); // No db dependency here, as it's fetched internally
+
+          // --- Video Management Functions ---
+          const handleVideoUrlInput = (e) => {
+            setVideoUrlInput(e.target.value);
+          };
+
+          const addVideoToPlaylist = async () => {
+            if (videoUrlInput.trim()) {
+                let url = videoUrlInput.trim();
+                const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=|embed\/|v\/|)([\w-]{11})(?:\S+)?/g;
+                const match = youtubeRegex.exec(url);
+
+                if (match && match[1]) {
+                    // Correct YouTube embed URL for Googleusercontent proxy
+                    url = `https://googleusercontent.com/youtube.com/0${match[1]}?autoplay=0&controls=1&modestbranding=1&rel=0`;
+                } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                    url = `http://${url}`; // Prepend http if no protocol
+                }
+
+                const newVideo = {
+                    url: url,
+                    title: `Video ${videosInPlaylist.length + 1}`,
+                    id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+                };
+                const updatedPlaylist = [...videosInPlaylist, newVideo];
+                setVideosInPlaylist(updatedPlaylist);
+                setVideoUrlInput('');
+
+                if (videosInPlaylist.length === 0) {
+                    selectVideoInPlaylist(0, updatedPlaylist);
+                }
+            }
+          };
+
+          const selectVideoInPlaylist = useCallback(async (index, playlist = videosInPlaylist) => {
+            if (playlist[index]) {
+              setCurrentPlaylistIndex(index);
+              const selectedVideo = playlist[index];
+              await updateGameStateInFirestore({
+                currentVideoUrl: selectedVideo.url,
+                currentVideoTitle: selectedVideo.title,
+                videoId: selectedVideo.id,
+              });
+            }
+          }, [videosInPlaylist, updateGameStateInFirestore]);
+
+          // Effect to play video when currentVideoUrl changes
+          useEffect(() => {
+            const existingError = videoPlayerRef.current?.parentNode?.querySelector('.video-error-message');
+            if (existingError) existingError.remove();
+
+            if (videoPlayerRef.current && gameState.currentVideoUrl) {
+                const isYouTubeEmbed = gameState.currentVideoUrl.includes('googleusercontent.com/youtube.com'); // Check for the proxy URL
+                const isCurrentElementIframe = videoPlayerRef.current.tagName === 'IFRAME';
+
+                if (isYouTubeEmbed && !isCurrentElementIframe) {
+                    const iframe = document.createElement('iframe');
+                    iframe.src = gameState.currentVideoUrl;
+                    iframe.allow = "autoplay; encrypted-media";
+                    iframe.frameBorder = "0";
+                    iframe.allowFullscreen = true;
+                    iframe.className = "w-full h-full rounded-2xl shadow-xl bg-black";
+                    if (videoPlayerRef.current.parentNode) {
+                        videoPlayerRef.current.parentNode.replaceChild(iframe, videoPlayerRef.current);
+                        videoPlayerRef.current = iframe;
+                    }
+                } else if (!isYouTubeEmbed && isCurrentElementIframe) {
+                    const newVideoElement = document.createElement('video');
+                    newVideoElement.setAttribute('controls', '');
+                    newVideoElement.setAttribute('muted', 'true');
+                    newVideoElement.setAttribute('preload', 'metadata');
+                    newVideoElement.className = "rounded-2xl w-full max-h-[60vh] shadow-xl bg-black";
+                    newVideoElement.onerror = (e) => {
+                        let errorMessage = 'The browser could not play this video. This often happens with unsupported video codecs or issues with the video URL.';
+                        if (e.target.error) {
+                            switch (e.target.error.code) {
+                                case MediaError.MEDIA_ERR_ABORTED: errorMessage = 'Video loading aborted by user.'; break;
+                                case MediaError.MEDIA_ERR_NETWORK: errorMessage = 'Network error: Video download failed.'; break;
+                                case MediaError.MEDIA_ERR_DECODE: errorMessage = 'Video decoding error: Corrupted or unsupported media.'; break;
+                                case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: errorMessage = 'Video format or URL not supported.'; break;
+                                default: errorMessage = `An unexpected error occurred (Code: ${e.target.error.code}).`; break;
+                            }
+                        }
+                        console.error('Video Playback Error:', e.target.error);
+                        const errorMsgElement = newVideoElement.parentNode.querySelector('.video-error-message');
+                        if (errorMsgElement) errorMsgElement.remove();
+                        
+                        const errorParagraph = document.createElement('p');
+                        errorParagraph.className = 'text-red-400 mt-4 text-lg font-bold video-error-message';
+                        errorParagraph.textContent = `Error playing video: ${errorMessage} Please try a different public video URL or format (e.g., MP4).`;
+                        newVideoElement.parentNode.appendChild(errorParagraph);
+                    };
+
+                    if (videoPlayerRef.current.parentNode) {
+                        videoPlayerRef.current.parentNode.replaceChild(newVideoElement, videoPlayerRef.current);
+                        videoPlayerRef.current = newVideoElement;
+                    }
+                }
+                
+                // Only update src if it's different or if it's an iframe (always needs src update to trigger load)
+                if (videoPlayerRef.current.src !== gameState.currentVideoUrl || isCurrentElementIframe) {
+                    videoPlayerRef.current.src = gameState.currentVideoUrl;
+                    if (!isCurrentElementIframe) {
+                        videoPlayerRef.current.load();
+                        videoPlayerRef.current.play().catch(error => {
+                            console.warn("Autoplay was prevented.", error);
+                        });
+                    }
+                }
+            } else if (videoPlayerRef.current) {
+                // If no currentVideoUrl, ensure player is reset
+                if (videoPlayerRef.current.tagName === 'IFRAME') {
+                    const newVideoElement = document.createElement('video');
+                    newVideoElement.setAttribute('controls', '');
+                    newVideoElement.setAttribute('muted', 'true');
+                    newVideoElement.setAttribute('preload', 'metadata');
+                    newVideoElement.className = "rounded-2xl w-full max-h-[60vh] shadow-xl bg-black";
+                    newVideoElement.onerror = (e) => { /* Same error handler as above */ }; // Attach error handler
+                    if (videoPlayerRef.current.parentNode) {
+                        videoPlayerRef.current.parentNode.replaceChild(newVideoElement, videoPlayerRef.current);
+                        videoPlayerRef.current = newVideoElement;
+                    }
+                } else {
+                    videoPlayerRef.current.src = '';
+                    videoPlayerRef.current.load();
+                }
+            }
+          }, [gameState.currentVideoUrl]);
+
+          const previousVideo = () => {
+            if (currentPlaylistIndex > 0) {
+              selectVideoInPlaylist(currentPlaylistIndex - 1);
+            }
+          };
+
+          const nextVideo = () => {
+            if (currentPlaylistIndex < videosInPlaylist.length - 1) {
+              selectVideoInPlaylist(currentPlaylistIndex + 1);
+            }
+          };
+
+          const clearVideos = async () => {
+            setVideosInPlaylist([]);
+            setCurrentPlaylistIndex(0);
+            const { db: initializedDb } = getFirebase();
+            await firebase.firestore.setDoc(firebase.firestore.doc(initializedDb, GAME_STATE_DOC_PATH, 'current'), {
+              currentVideoUrl: '',
+              currentVideoTitle: 'No video selected',
+              videoId: null,
+            }, { merge: true });
+            const existingError = videoPlayerRef.current?.parentNode?.querySelector('.video-error-message');
+            if (existingError) existingError.remove();
+          };
+
+          // --- Voting Logic ---
+          const startVoting = async () => {
+            const { db: initializedDb } = getFirebase();
+            if (!initializedDb || gameState.voting || !gameState.currentVideoUrl) {
+                console.log("Cannot start voting: DB not ready, already voting, or no video selected.");
+                return;
+            }
+
+            await firebase.firestore.setDoc(firebase.firestore.doc(initializedDb, GAME_STATE_DOC_PATH, 'current'), {
+              voting: true,
+              countdown: 7,
+              votes: { cry: 0, rollEyes: 0 },
+            }, { merge: true });
+
+            let countdownVal = 7;
+            clearInterval(countdownTimer);
+            countdownTimer = setInterval(async () => {
+              countdownVal--;
+              if (countdownVal < 0) {
+                clearInterval(countdownTimer);
+                await endVoting();
+              } else {
+                await firebase.firestore.setDoc(firebase.firestore.doc(initializedDb, GAME_STATE_DOC_PATH, 'current'), { countdown: countdownVal }, { merge: true });
+              }
+            }, 1000);
+          };
+
+          const castVote = async (voteType) => {
+            const { db: initializedDb } = getFirebase();
+            if (!initializedDb || !gameState.voting || userVoteStatus !== null) {
+                console.log("Cannot cast vote: DB not ready, voting not active, or already voted.");
+                return;
+            }
+
+            setUserVoteStatus(voteType);
+
+            try {
+              await firebase.firestore.setDoc(firebase.firestore.doc(initializedDb, GAME_STATE_DOC_PATH, 'current'), {
+                [`votes.${voteType}`]: firebase.firestore.increment(1),
+              }, { merge: true });
+            } catch (error) {
+              console.error("Error casting vote:", error);
+              setUserVoteStatus(null);
+            }
+          };
+
+          const endVoting = async () => {
+            const { db: initializedDb } = getFirebase();
+            if (!initializedDb) return;
+            clearInterval(countdownTimer);
+            await firebase.firestore.setDoc(firebase.firestore.doc(initializedDb, GAME_STATE_DOC_PATH, 'current'), { voting: false, countdown: -1 }, { merge: true });
+          };
+
+          const resetVoting = async () => {
+            const { db: initializedDb } = getFirebase();
+            if (!initializedDb) return;
+            clearInterval(countdownTimer);
+            await firebase.firestore.setDoc(firebase.firestore.doc(initializedDb, GAME_STATE_DOC_PATH, 'current'), {
+              voting: false,
+              countdown: 7,
+              votes: { cry: 0, rollEyes: 0 },
+            }, { merge: true });
+            setUserVoteStatus(null);
+          };
+
+          // --- UI Rendering Helpers ---
+          const renderMainScreen = () => (
+            <div className="main-screen w-full">
+              <div className="connection-status">
+                <span className="inline-block mr-2 text-xl align-middle animate-spin">🔄</span>
+                Connected: {connectedUsersCount}
+              </div>
+
+              <div className="video-section">
+                <h2>Video Playlist & Display</h2>
+                <div className="flex flex-col md:flex-row items-center gap-4 mb-6">
+                  <input
+                    type="url"
+                    value={videoUrlInput}
+                    onChange={handleVideoUrlInput}
+                    placeholder="Paste public video URL (e.g., YouTube, MP4 link)"
+                    className="flex-grow p-3 rounded-xl bg-white bg-opacity-20 text-white placeholder-gray-300 border border-transparent focus:border-white focus:outline-none"
+                  />
+                  <button
+                    onClick={addVideoToPlaylist}
+                    className="upload-btn px-6 py-3"
+                  >
+                    <span className="inline-block mr-2 text-xl align-middle">☁️</span>Add Video
+                  </button>
+                </div>
+
+                {videosInPlaylist.length > 0 && (
+                  <div className="video-playlist">
+                    <h3>Your Videos</h3>
+                    <div className="playlist-items">
+                      {videosInPlaylist.map((video, index) => (
+                        <div
+                          key={video.id}
+                          className={`playlist-item ${currentPlaylistIndex === index ? 'active' : ''}`}
+                          onClick={() => selectVideoInPlaylist(index)}
+                        >
+                          <div className="video-name">{video.title}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="video-display">
+                  <video
+                    ref={videoPlayerRef}
+                    controls
+                    muted={true}
+                    preload="metadata"
+                    className="rounded-2xl w-full max-h-[60vh] shadow-xl bg-black"
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                  {/* Error message will be dynamically inserted here */}
+                </div>
+
+                <div className="control-panel">
+                    <button onClick={previousVideo} className="control-btn" disabled={currentPlaylistIndex === 0}>
+                        <span className="inline-block mr-2 text-xl align-middle">⏪</span>Previous
+                    </button>
+                    <button onClick={nextVideo} className="control-btn" disabled={currentPlaylistIndex === videosInPlaylist.length - 1}>
+                        <span className="inline-block mr-2 text-xl align-middle">⏩</span>Next
+                    </button>
+                    <button onClick={clearVideos} className="control-btn reset">
+                        <span className="inline-block mr-2 text-xl align-middle">🗑️</span>Clear Playlist
+                    </button>
+                </div>
+              </div>
+
+              <div className="control-section">
+                <h2>Game Controls</h2>
+                <p className="text-center mb-4 text-xl">Current Video: <span className="font-semibold">{gameState.currentVideoTitle}</span></p>
+
+                <div className="control-panel">
+                  <button
+                    onClick={startVoting}
+                    className="control-btn start"
+                    disabled={gameState.voting || !gameState.currentVideoUrl}
+                  >
+                    <span className="inline-block mr-2 text-xl align-middle">🚀</span>Start Voting
+                  </button>
+                  <button
+                    onClick={endVoting}
+                    className="control-btn"
+                    disabled={!gameState.voting}
+                  >
+                    <span className="inline-block mr-2 text-xl align-middle">🛑</span>End Voting
+                  </button>
+                  <button
+                    onClick={resetVoting}
+                    className="control-btn reset"
+                    disabled={gameState.voting}
+                  >
+                    <span className="inline-block mr-2 text-xl align-middle">↩️</span>Reset Votes
+                  </button>
+                </div>
+              </div>
+
+              <div className="results-section">
+                <h2>Voting Results</h2>
+                {gameState.voting && gameState.countdown > 0 ? (
+                  <p className="countdown-display">{gameState.countdown}</p>
+                ) : (
+                  <p className="text-center text-3xl font-bold my-4">Voting is {!gameState.voting ? 'closed' : 'active'}!</p>
+                )}
+                
+                <div className="stats">
+                  <div className="stat-item">
+                    <span className="emoji">😢</span>
+                    Cry Votes: <span className="font-bold text-green-300">{gameState.votes.cry}</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="emoji">🙄</span>
+                    Roll Eyes Votes: <span className="font-bold text-red-300">{gameState.votes.rollEyes}</span>
+                  </div>
+                </div>
+
+                <div className="chart-container mt-8 h-80">
+                    <canvas ref={chartCanvasRef}></canvas>
+                </div>
+              </div>
+            </div>
+          );
+
+          const renderPhoneScreen = () => (
+            <div className="phone-screen w-full flex flex-col items-center justify-center min-h-[calc(100vh-40px)]">
+              <div className="connection-status">
+                <span className="inline-block mr-2 text-xl align-middle animate-spin">🔄</span>
+                Connected: {connectedUsersCount}
+              </div>
+
+              <h1 className="text-white text-4xl md:text-5xl mb-8 drop-shadow-lg">Anniversary Vote</h1>
+              <p className="text-center mb-4 text-xl opacity-90">Watch the main screen for the video!</p>
+
+              {gameState.currentVideoUrl && (
+                <div className="current-video-info text-center mb-8 bg-white bg-opacity-10 rounded-xl p-4 shadow-lg backdrop-blur-sm">
+                    <p className="text-lg font-semibold">Current Video:</p>
+                    <p className="text-2xl font-bold">{gameState.currentVideoTitle}</p>
+                </div>
+              )}
+
+              {gameState.voting ? (
+                <div className="voting-area">
+                  <p className="vote-countdown">{gameState.countdown > 0 ? gameState.countdown : 'Time\'s Up!'}</p>
+                  <p className="text-xl md:text-2xl text-center mb-6">How did this video make you feel?</p>
+                  <div className="vote-buttons">
+                    <button
+                      onClick={() => castVote('cry')}
+                      className={`vote-btn cry ${userVoteStatus === 'cry' ? 'selected' : ''}`}
+                      disabled={userVoteStatus !== null || gameState.countdown <= 0}
+                    >
+                      😢 Made Me Cry
+                    </button>
+                    <button
+                      onClick={() => castVote('rollEyes')}
+                      className={`vote-btn roll-eyes ${userVoteStatus === 'rollEyes' ? 'selected' : ''}`}
+                      disabled={userVoteStatus !== null || gameState.countdown <= 0}
+                    >
+                      🙄 Made Me Roll My Eyes
+                    </button>
+                  </div>
+                  {userVoteStatus && (
+                    <p className="waiting-message">
+                      Thanks for voting! Waiting for the next round...
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="waiting-area text-center">
+                  <p className="waiting-message">
+                    Voting is currently closed. The host will start the next round soon!
+                  </p>
+                  <p className="text-6xl mt-6 animate-bounce">🎬</p>
+                </div>
+              )}
+
+              <div className="live-votes">
+                <h3>Live Vote Counts</h3>
+                <div className="live-vote-counts">
+                  <div className="live-count">
+                    <span className="emoji">😢</span>
+                    <span className="font-bold">{gameState.votes.cry}</span>
+                  </div>
+                  <div className="live-count">
+                    <span className="emoji">🙄</span>
+                    <span className="font-bold">{gameState.votes.rollEyes}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+
+          return (
+            <div className="container">
+              <h1 className="mb-8">Anniversary Video Voting Game</h1>
+
+              <div className="flex justify-center gap-4 mb-8">
+                <button
+                  onClick={() => setMode('main')}
+                  className={`mode-btn ${mode === 'main' ? 'active' : ''}`}
+                >
+                  <span className="inline-block mr-2 text-xl align-middle">🖥️</span>Host Screen
+                </button>
+                <button
+                  onClick={() => setMode('phone')}
+                  className={`mode-btn ${mode === 'phone' ? 'active' : ''}`}
+                >
+                  <span className="inline-block mr-2 text-xl align-middle">📱</span>Phone Screen
+                </button>
+              </div>
+
+              {mode === 'main' ? renderMainScreen() : renderPhoneScreen()}
+            </div>
+          );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
